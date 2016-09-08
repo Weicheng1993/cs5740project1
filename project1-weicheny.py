@@ -29,8 +29,11 @@ def format_file_name(task_type, file_type,file_number,train_docs="train_docs"):
 # print(os.path.exists(format_file_name("sp", "religion", 4),))
 
 def read_file(task_type: str, file_type: str, file_number: int, train_docs="train_docs"):
-    with open(format_file_name(task_type, file_type, file_number, train_docs)) as f:
-        return f.read()
+    file_name = format_file_name(task_type, file_type, file_number, train_docs)
+    if os.path.exists(file_name):
+        with open(file_name) as f:
+            return f.read()
+    return ""
 
 def tokenize(file_content: str):
     return word_tokenize(file_content)
@@ -50,6 +53,46 @@ def build_unary_model(c: Counter):
         new_counter[i] = c[i] / total
     return new_counter
 
+def assign_probability_unary(c: Counter)->[tuple]:
+    lower_bound = 0
+    ret = []
+    for i in c:
+        ret.append((lower_bound, lower_bound+c[i], i))
+        lower_bound += c[i]
+    return ret
+    
+    
 
+def unary_random_word_generation(probability: [tuple]):
+    low, high = 0, len(probability) - 1
+    random_int = random.random()
+    
+    while random_int >= probability[-1][1]:
+        random_int = random.random() #normalize
+        
+    while (low <= high):
+        mid = (low + high) // 2
+        if probability[mid][0] > random_int:
+            high = mid - 1
+        elif probability[mid][1] <= random_int:
+            low = mid + 1
+        else:
+            return probability[mid][2]
+
+def unary_random_n_words_generation(probability, n):
+    ret = ''
+    for i in range(n):
+        ret += " " + unary_random_word_generation(probability)
+    return ret
+
+def unary_random_sentence_generation(task_type, file_type, sentence_length, train_docs="train_docs"):
+    C = Counter()
+    for i in range(300):
+        C.update(handle_file(task_type, file_type, i, train_docs))
+    model = build_unary_model(C)
+    return unary_random_n_words_generation(assign_probability_unary(model), sentence_length)
+            
 sample = handle_file("sp", "graphics", "10", "train_modified_docs")
-sample.most_common(4)
+unary_model = build_unary_model(sample)
+probability_unary_model = assign_probability_unary(unary_model)
+unary_random_sentence_generation('sp','autos', 30)
