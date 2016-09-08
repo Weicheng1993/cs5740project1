@@ -11,7 +11,8 @@ ADD_SENTENCE_BUUNDARY_TAG = 0
 DIFFERNTIATE_CAPS = 0
 REMOVE_BAD_SYMBOLS = 1
 
-Bad_symbols = ",.:;'\"!#$%&()*+-/<=>@[\]^_`{|}~<>\|?!\\"
+Bad_symbols = ",:;'\"#$%&()*+-/<=>@[\]^_`{|}~<>\|\\"
+Ending_symbols = ".!?"
 Classification = "data/data_corrected/classification_task/"
 Spelling = "data/data_corrected/spell_checking_task/"
 Types_of_file = {"atheism", "autos", "graphics", "medicine", "motorcycles", "religion", "space"}
@@ -29,8 +30,6 @@ def format_file_name(task_type, file_type,file_number,train_docs="train_docs"):
             return Spelling+ file_type + "/" + train_docs + "/" + file_type + "_file{}_modified.txt".format(file_number)
     else:
         return None
-# print(format_file_name("sp", "religion", 4,"train_docs"))
-# print(os.path.exists(format_file_name("sp", "religion", 4),))
 
 def read_file(task_type: str, file_type: str, file_number: int, train_docs="train_docs"):
     file_name = format_file_name(task_type, file_type, file_number, train_docs)
@@ -50,34 +49,46 @@ def preprocess_content(content: str):
     return content
     
 def tokenize(file_content: str):
+    #return list of words given a str
     return word_tokenize(file_content)
        
 def bow(tokens: [str]):
-    return Counter(tokens)
+    #return a dict of word tokens associated with counts
+    d = dict()
+    for i in tokens:
+        if i not in d:
+            d[i] = 1
+        else:
+            d[i] += 1
+    return d
 
 def handle_file(task_type: str, file_type: str, file_number: int, train_docs="train_docs"):
+    #return bag of word representation of a given file
     return bow(tokenize(preprocess_content(read_file(task_type, file_type, file_number, train_docs))))
 
+def tokenize_file(task_type: str, file_type: str, file_number: int, train_docs="train_docs"):
+    #return a list of tokens given a file
+    return tokenize(preprocess_content(read_file(task_type, file_type, file_number, train_docs)))
 
-def build_unary_model(c: Counter):
+def build_unary_model(c: dict):
+    #given a BoW, convert count into probability
     total = sum(c.values())
-    new_counter = Counter()
-    new_counter.update(c)
-    for i in c:
-        new_counter[i] = c[i] / total
-    return new_counter
+    d = dict(c)
+    for i in d:
+        d[i] = d[i] / total
+    return d
 
-def assign_probability_unary(c: Counter)->[tuple]:
+def assign_probability_unary(c: dict)->[tuple]:
+    #given a unary model, assign a lower and upper bound probability to the word. e.g. [0.23,0.34, 'word']
     lower_bound = 0
     ret = []
     for i in c:
         ret.append((lower_bound, lower_bound+c[i], i))
         lower_bound += c[i]
     return ret
-    
-    
 
 def unary_random_word_generation(probability: [tuple]):
+    #return a random word based on probability given probability list
     low, high = 0, len(probability) - 1
     random_int = random.random()
     
@@ -93,20 +104,67 @@ def unary_random_word_generation(probability: [tuple]):
         else:
             return probability[mid][2]
 
-def unary_random_n_words_generation(probability, n):
-    ret = ''
-    for i in range(n):
-        ret += " " + unary_random_word_generation(probability)
-    return ret
-
-def unary_random_sentence_generation(task_type, file_type, sentence_length, train_docs="train_docs"):
-    C = Counter()
+def unary_random_sentence_generation(task_type, file_type, train_docs="train_docs"):
+    C = dict()
     for i in range(300):
         C.update(handle_file(task_type, file_type, i, train_docs))
     model = build_unary_model(C)
-    return unary_random_n_words_generation(assign_probability_unary(model), sentence_length).strip()
-            
-# sample = handle_file("sp", "religion", "10")
-# unary_model = build_unary_model(sample)
-# probability_unary_model = assign_probability_unary(unary_model)
-unary_random_sentence_generation('sp','religion', 100)
+    probability = assign_probability_unary(model)
+    sentence = ""
+    
+    while 1:
+        word = unary_random_word_generation(probability)
+        if word in Ending_symbols:
+            sentence += word + " "
+            return sentence
+        sentence += word + " "
+
+def build_bigram_model(tokens: [str]):
+    #turn list of tokens into bigrams dict of dict
+    bigrams = list(nltk.bigrams(tokens))
+    d = dict()
+    for i, j in bigrams:
+        if i not in d:
+            d[i] = {j: 1}
+        elif j not in d[i]:
+            d[i][j] = 1
+        else:
+            d[i][j] += 1
+    return d
+
+def bigram_update_model_with_new_tokens(d:"bigram_model", tokens):
+    #update current bigram model with new tokens
+    new = list(nltk.bigrams(tokens))
+    for i, j in new:
+        if i not in d:
+            d[i] = {j: 1}
+        elif j not in d[i]:
+            d[i][j] = 1
+        else:
+            d[i][j] += 1
+    return d
+
+def bigram_random_sentence_generation(task_type, file_type, train_docs="train_docs"):
+
+    #build unary and generate start word
+    C = dict() #unary dict
+    d = dict() #d is bigram_model stored as dict of dict
+    for i in range(300):
+        C.update(handle_file(task_type, file_type, i, train_docs))
+        d = bigram_update_model_with_new_tokens(d, tokenize_file(task_type, file_type, i, train_docs))
+    
+    probability_unary_model = assign_probability_unary(build_unary_model(C))
+    current_word = unary_random_word_generation(probability_unary_model)
+    
+    ret = current_word
+    while current_word not in Ending_symbols:
+        unary = build_unary_model(d[current_word])
+        current_word = unary_random_word_generation(assign_probability_unary(unary))
+        ret += " " + current_word
+    return ret
+
+def n_bigram_random_sentence_generation(n, task_type, file_type, train_docs="train_docs"):
+    for i in range(n):
+        print(bigram_random_sentence_generation(task_type,file_type))
+
+print(n_bigram_random_sentence_generation(10,'sp','space'))
