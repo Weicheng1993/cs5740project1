@@ -1,13 +1,15 @@
+from nltk import word_tokenize
+from collections import Counter
 import random
 import os
 import nltk
 import re
 import string
 
-REMOVE_IRRELEVANT_TEXT = True
-ADD_SENTENCE_BUUNDARY_TAG = False
-DIFFERNTIATE_CAPS = False
-REMOVE_BAD_SYMBOLS = True
+REMOVE_IRRELEVANT_TEXT = 1
+ADD_SENTENCE_BUUNDARY_TAG = 0
+DIFFERNTIATE_CAPS = 0
+REMOVE_BAD_SYMBOLS = 1
 
 Bad_symbols = ",.:;'\"!#$%&()*+-/<=>@[\]^_`{|}~<>\|?!\\"
 Classification = "data/data_corrected/classification_task/"
@@ -46,11 +48,6 @@ def preprocess_content(content: str):
         regex = re.compile('[%s]' % re.escape(Bad_symbols))
         content = regex.sub(' ', content)
     return content
-    
-    
-    
-    
-    
     
 def tokenize(file_content: str):
     return word_tokenize(file_content)
@@ -112,4 +109,4 @@ def unary_random_sentence_generation(task_type, file_type, sentence_length, trai
 # sample = handle_file("sp", "religion", "10")
 # unary_model = build_unary_model(sample)
 # probability_unary_model = assign_probability_unary(unary_model)
-unary_random_sentence_generation('sp','religion', 10000)
+unary_random_sentence_generation('sp','religion', 100)
