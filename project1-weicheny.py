@@ -1,13 +1,15 @@
-from nltk import word_tokenize
-from collections import Counter
 import random
 import os
 import nltk
+import re
+import string
 
-REMOVE_IRRELEVANT_TEXT = False
+REMOVE_IRRELEVANT_TEXT = True
 ADD_SENTENCE_BUUNDARY_TAG = False
 DIFFERNTIATE_CAPS = False
+REMOVE_BAD_SYMBOLS = True
 
+Bad_symbols = ",.:;'\"!#$%&()*+-/<=>@[\]^_`{|}~<>\|?!\\"
 Classification = "data/data_corrected/classification_task/"
 Spelling = "data/data_corrected/spell_checking_task/"
 Types_of_file = {"atheism", "autos", "graphics", "medicine", "motorcycles", "religion", "space"}
@@ -32,9 +34,24 @@ def read_file(task_type: str, file_type: str, file_number: int, train_docs="trai
     file_name = format_file_name(task_type, file_type, file_number, train_docs)
     if os.path.exists(file_name):
         with open(file_name) as f:
-            return f.read()
+            file_content = f.read()
+            return file_content
     return ""
 
+def preprocess_content(content: str):
+    if REMOVE_IRRELEVANT_TEXT:
+        email_pattern = '\w+@\w+\.\w+'
+        content = re.sub(email_pattern, ' ', content)
+    if REMOVE_BAD_SYMBOLS:
+        regex = re.compile('[%s]' % re.escape(Bad_symbols))
+        content = regex.sub(' ', content)
+    return content
+    
+    
+    
+    
+    
+    
 def tokenize(file_content: str):
     return word_tokenize(file_content)
        
@@ -42,7 +59,7 @@ def bow(tokens: [str]):
     return Counter(tokens)
 
 def handle_file(task_type: str, file_type: str, file_number: int, train_docs="train_docs"):
-    return bow(tokenize(read_file(task_type, file_type, file_number, train_docs)))
+    return bow(tokenize(preprocess_content(read_file(task_type, file_type, file_number, train_docs))))
 
 
 def build_unary_model(c: Counter):
@@ -90,9 +107,9 @@ def unary_random_sentence_generation(task_type, file_type, sentence_length, trai
     for i in range(300):
         C.update(handle_file(task_type, file_type, i, train_docs))
     model = build_unary_model(C)
-    return unary_random_n_words_generation(assign_probability_unary(model), sentence_length)
+    return unary_random_n_words_generation(assign_probability_unary(model), sentence_length).strip()
             
-sample = handle_file("sp", "graphics", "10", "train_modified_docs")
-unary_model = build_unary_model(sample)
-probability_unary_model = assign_probability_unary(unary_model)
-unary_random_sentence_generation('sp','autos', 30)
+# sample = handle_file("sp", "religion", "10")
+# unary_model = build_unary_model(sample)
+# probability_unary_model = assign_probability_unary(unary_model)
+unary_random_sentence_generation('sp','religion', 10000)
