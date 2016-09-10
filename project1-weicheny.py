@@ -5,13 +5,12 @@ import os
 import nltk
 import re
 import string
-
 REMOVE_IRRELEVANT_TEXT = 1
 ADD_SENTENCE_BUUNDARY_TAG = 0
 DIFFERNTIATE_CAPS = 0
 REMOVE_BAD_SYMBOLS = 1
 
-Bad_symbols = ",:;'\"#$%&()*+-/<=>@[\]^_`{|}~<>\|\\"
+Bad_symbols = "\#$%&()*+-/<=>@[\]^_`{|}~<>\|\\" #I don't think ,;:'" are bad symbols and I removed those
 Ending_symbols = ".!?"
 Classification = "data/data_corrected/classification_task/"
 Spelling = "data/data_corrected/spell_checking_task/"
@@ -40,9 +39,19 @@ def read_file(task_type: str, file_type: str, file_number: int, train_docs="trai
     return ""
 
 def preprocess_content(content: str):
+    ''' #this part only removes a certain email pattern(e.g. doesn't work with nicho@vnet.ibm.com) which is not what we want. We need to remove all headers.
     if REMOVE_IRRELEVANT_TEXT:
         email_pattern = '\w+@\w+\.\w+'
+        print(content+'email\n')
         content = re.sub(email_pattern, ' ', content)
+        print(content+'email\n')
+    '''
+    if REMOVE_IRRELEVANT_TEXT:
+        content = content.split('Subject :', 1)[-1]
+        content = content.split('writes :', 1)[-1]#this may not happen
+        
+    #we didn't handle the ending of the email, like name, address, tel etc.
+        
     if REMOVE_BAD_SYMBOLS:
         regex = re.compile('[%s]' % re.escape(Bad_symbols))
         content = regex.sub(' ', content)
@@ -153,9 +162,36 @@ def bigram_random_sentence_generation(task_type, file_type, train_docs="train_do
         C.update(handle_file(task_type, file_type, i, train_docs))
         d = bigram_update_model_with_new_tokens(d, tokenize_file(task_type, file_type, i, train_docs))
     
-    probability_unary_model = assign_probability_unary(build_unary_model(C))
+    probability_unary_model = assign_probability_unary(build_unary_model(C)) #unigram cache
     current_word = unary_random_word_generation(probability_unary_model)
     
+    ret = current_word
+    while current_word not in Ending_symbols:
+        unary = build_unary_model(d[current_word])
+        current_word = unary_random_word_generation(assign_probability_unary(unary))
+        ret += " " + current_word
+    return ret
+
+
+
+#the following three methods is for second bigram model generation
+def preprocess_content_for_second_bigram_method(content: str):
+    content = preprocess_content(content)
+    for i in Ending_symbols:    #< is our begin/stop marker
+        content = content.replace(i, i+" <")
+    content = "< " + content    #prepend a <
+    return content
+
+def tokenize_file_for_second_bigram_method(task_type: str, file_type: str, file_number: int, train_docs="train_docs"):
+    #return a list of tokens given a file
+    return tokenize(preprocess_content_for_second_bigram_method(read_file(task_type, file_type, file_number, train_docs)))
+
+def bigarm_random_sentence_generation_second_bigram_method(task_type, file_type, train_docs="train_docs"):
+    d = dict() #d is bigram_model stored as dict of dict
+    for i in range(300):
+        d = bigram_update_model_with_new_tokens(d, tokenize_file_for_second_bigram_method(task_type, file_type, i, train_docs))
+    
+    current_word = "<" #this is always the beginning of a sentence
     ret = current_word
     while current_word not in Ending_symbols:
         unary = build_unary_model(d[current_word])
@@ -166,5 +202,6 @@ def bigram_random_sentence_generation(task_type, file_type, train_docs="train_do
 def n_bigram_random_sentence_generation(n, task_type, file_type, train_docs="train_docs"):
     for i in range(n):
         print(bigram_random_sentence_generation(task_type,file_type))
+        print(bigarm_random_sentence_generation_second_bigram_method(task_type,file_type)[2:])
 
-print(n_bigram_random_sentence_generation(10,'sp','space'))
+n_bigram_random_sentence_generation(1,'sp','space')
