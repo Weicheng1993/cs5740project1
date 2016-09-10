@@ -18,7 +18,6 @@ Types_of_file = {"atheism", "autos", "graphics", "medicine", "motorcycles", "rel
 File_counts = 300 #0-299 0 might be invalid
 
 
-
 def format_file_name(task_type, file_type,file_number,train_docs="train_docs"):
     if "cl" == task_type:
         return Classification + file_type + "/" + train_docs + "/" + file_type + "_file{}.txt".format(file_number)
